@@ -5,9 +5,11 @@ var express = require("express");
 var multer = require("multer");
 var app = express();
 let { PythonShell } = require("python-shell");
-var path = require("path");
 const fs = require("fs");
 const VoiceSenseController = require("../Controllers/VoiceSenseController");
+const AzureController = require("../Controllers/AzureFunctions");
+const RecordingsController = require("../Controllers/RecordingsController");
+const pythonexecutable = require("../config/pythonexecutable");
 app.use(express.static("public")); // for serving the HTML file
 
 var upload = multer({ dest: __dirname + "/public/uploads/" });
@@ -15,7 +17,6 @@ var type = upload.single("upl");
 var router = express.Router();
 
 const { Connection, Request } = require("tedious");
-const { dirname } = require("path");
 
 const config = {
   authentication: {
@@ -41,7 +42,7 @@ connection.on("connect", (err) => {
     console.log("Connection Successful for recording!");
   }
 });
-
+let transcript = "";
 router.post("/", type, async function (req, res, next) {
   let h1 =
     __dirname + "/public/mp3/" + req.body.id + req.body.question + ".mp3";
@@ -59,12 +60,11 @@ router.post("/", type, async function (req, res, next) {
   );
 
   const scriptPath1 = __dirname + "/../python";
-
   const options = {
     mode: "text",
     pythonOptions: ["-u"],
     scriptPath: scriptPath1,
-    pythonPath: "D:/home/python364x64/python.exe", //D:\home\python364x64\python.exe, C:/Users/Pranav Patel/AppData/Local/Programs/Python/Python37/python.exe
+    pythonPath: "D:/python/python.exe", //D:\home\python364x64\python.exe, C:/Users/Pranav Patel/AppData/Local/Programs/Python/Python37/python.exe
     args: [h1, base_dir],
   };
 
@@ -114,46 +114,39 @@ async function save_into_database(
   interview_id
 ) {
   var test = new PythonShell("speechtotextschabu.py", options);
-  test.on("message", function (message) {
-    const request = new Request(
-      // `insert into [dbo].[demo_answer] (answer_id, question_id, interview_id, answer_text, answer_audio) Values ('`+question_id+`', '` +question_id+`', '`+1+`', '`+ message+`','` + pythonPass + `');`
-      `insert into [dbo].[demo_answer] (answer_id, question_id, interview_id, answer_text, answer_audio) Values ('` +
-        question_id +
-        `', '` +
-        question_id +
-        `', '` +
-        interview_id +
-        `', '` +
-        message +
-        `','` +
-        pythonPass +
-        `');`,
-      (err, rowCount) => {
-        if (err) {
-          console.error(err.message);
-        } else {
-          return rowCount;
-        }
-      }
-    );
-    connection.execSql(request);
-    test.end(async () => {
-      try {
-        let voicesenseResult = await VoiceSenseController.uploadVoiceSense(
-          path
-        );
 
-        voicesenseResult = JSON.parse(voicesenseResult);
-        voicesenseResult = voicesenseResult.id;
-        const update = await VoiceSenseController.saveReference(
-          interview_id,
-          question_id,
-          voicesenseResult
-        );
-      } catch (error) {
-        //Do nothing when file is too short to get a voice sense score
-      }
-    });
+  test.on("message", (message) => {
+    transcript = message;
+  });
+  test.end(async () => {
+    try {
+      let azureResponse = await AzureController.uploadFile(path, interview_id);
+      let blobReference = azureResponse.name;
+      const saveRecording = RecordingsController.saveRecordingInformation(
+        question_id,
+        interview_id,
+        transcript,
+        blobReference
+      );
+    } catch (error) {
+      console.log("Azure" + error);
+    }
+
+    try {
+      let voicesenseResult = await VoiceSenseController.uploadVoiceSense(path);
+
+      voicesenseResult = JSON.parse(voicesenseResult);
+      voicesenseResult = voicesenseResult.id;
+
+      const update = await VoiceSenseController.saveReference(
+        interview_id,
+        question_id,
+        voicesenseResult
+      );
+    } catch (error) {
+      //Do nothing when file is too short to get a voice sense score
+      console.log("voicesense");
+    }
   });
 }
 

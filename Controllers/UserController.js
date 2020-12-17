@@ -1,4 +1,5 @@
 const { Connection, Request } = require("tedious");
+const uuid = require("uuid");
 const config = {
   authentication: {
     options: {
@@ -59,6 +60,7 @@ const Controller = {
     let candidate = await helper.getHashFromName(name);
     candidate = candidate.hash;
     const interview_id = req.body.interview_id;
+    console.log(interview_id);
     const request = new Request(
       `insert into [dbo].[demo_candidate_interview] (candidate_hash,interview_id) Values ('${candidate}', '${interview_id}')`,
       (err, rowCount) => {
@@ -86,7 +88,6 @@ const Controller = {
     request.on("row", (columns) => {
       var _item = {};
       // Converting the response row to a JSON formatted object: [property]: value
-      console.log(columns);
       for (var name in columns) {
         _item[columns[name].metadata.colName] = columns[name].value;
       }
