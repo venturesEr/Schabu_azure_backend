@@ -2,7 +2,7 @@
 
 # dependencies
 node_modules
-routes/public
+
 
 # testing
 /coverage
@@ -25,4 +25,5 @@ yarn-debug.log*
 yarn-error.log*
 
 front_end_build
+# routes/public
 node_python
