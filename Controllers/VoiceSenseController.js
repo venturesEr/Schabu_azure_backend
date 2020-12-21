@@ -1,6 +1,7 @@
 const fs = require("fs");
 const rp = require("request-promise");
 const { Connection, Request } = require("tedious");
+const axios = require("axios");
 const config = {
   authentication: {
     options: {
@@ -26,7 +27,38 @@ connection.on("connect", (err) => {
 });
 
 const helper = {
-  //Saves the data provided by voicesense to the database
+  getResults: async (id) => {
+    const result = new Promise((resolve, reject) => {
+      const url = `https://test.voicesense.com/api/externalservices2/predictor/${id}/personality-attribute`;
+
+      var options = {
+        method: "GET",
+        uri: url,
+        headers: {
+          Authorization: "Basic c2NoYWJ1QHZvaWNlc2Vuc2UuY29tOkpXVGpzNDRyIQ==",
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      };
+      rp(options)
+        .then((res) => {
+          let data = JSON.parse(res);
+          let scores = data.channels[0].scores;
+          let sum = 0;
+          let count = 0;
+          for (let prop in scores) {
+            sum += scores[prop] / data.definition[prop].max;
+            count++;
+          }
+          let avg = sum / count;
+          resolve(Math.floor(avg * 100));
+        })
+        .catch((err) => {
+          resolve(0);
+        });
+    });
+    return await result;
+  },
 };
 
 const Controller = {
@@ -77,8 +109,9 @@ const Controller = {
     return await result;
   },
   saveReference: async (interview_id, question_id, voice_sense_id) => {
+    const score = await helper.getResults(voice_sense_id);
     const request = new Request(
-      `UPDATE [dbo].demo_answer SET voicesense_id='${voice_sense_id}' where question_id='${question_id}' AND interview_id='${interview_id}';`,
+      `UPDATE [dbo].demo_candidate_interview SET voicesense_id='${voice_sense_id}',voicesense_score='${score}' WHERE interview_id='${interview_id}';`,
       (err, response) => {
         if (err) {
           console.log(err);
@@ -88,6 +121,21 @@ const Controller = {
       }
     );
     connection.execSql(request);
+  },
+  makeRequest_serverless: async (urls, filename) => {
+    const result = new Promise(async (resolve, reject) => {
+      try {
+        const voice_id = await axios.post(
+          "https://uploadwavfile.azurewebsites.net/api/HttpTrigger1?code=j5DSk5BDF20yPy3ytaO0FxuvRZr6kJaIq0HsbpJ/mcRBqqvVn60vaA==",
+          { body: { urls: urls, filename: filename } }
+        );
+        resolve(voice_id.id);
+      } catch (error) {
+        reject(error);
+        console.log(error);
+      }
+    });
+    return await result;
   },
 };
 module.exports = Controller;

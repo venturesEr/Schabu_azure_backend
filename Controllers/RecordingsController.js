@@ -2,6 +2,7 @@ const { Connection, Request } = require("tedious");
 const fs = require("fs");
 const FormData = require("form-data");
 const AzureController = require("./AzureFunctions");
+const RecordingHelper = require("../lib/helpers/RecordingHelpers");
 const config = {
   authentication: {
     options: {
@@ -59,31 +60,14 @@ const helper = {
 const Controller = {
   getRecordings: async (req, res, next) => {
     let interview_id = req.params.id;
-    console.log(req.body);
-    const request = new Request(
-      `select answer_audio,answer_text,question_id from [dbo].[demo_answer] WHERE interview_id='${interview_id}' AND voicesense_id!='';`,
-      (err, row, rows) => {
-        if (err) {
-          res.send(err);
-        }
-      }
-    );
-    let _rows = [];
-
-    request.on("row", (columns) => {
-      // Converting the response row to a JSON formatted object: [property]: value
-      let item = {};
-      columns.forEach((col) => {
-        item[col.metadata.colName] = col.value;
-      });
-      _rows.push(item);
-    });
-
-    request.on("doneInProc", (rowCount, more, rows) => {
-      const uris = AzureController.getSasTokens(_rows);
-      res.send(_rows);
-    });
-    connection.execSql(request);
+    try {
+      const rows = await RecordingHelper.getUrlsForInterview(interview_id);
+      const uris = AzureController.getSasTokens(rows);
+      res.send(uris);
+    } catch (error) {
+      res.send({ status: 500 });
+      console.log(error);
+    }
   },
   saveRecordingInformation: async (
     question_id,
