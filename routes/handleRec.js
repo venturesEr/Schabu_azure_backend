@@ -90,15 +90,12 @@ router.post("/", type, async function (req, res, next) {
         interview_id
       );
       const sasUrls = await AzureController.getSasTokens(blobNames);
-      console.log(sasUrls);
 
       const voicesenseResult = await VoiceHelper.helper(
         sasUrls,
         `${Number(Date.now())}.wav`
       );
-      console.log(voicesenseResult);
       if (voicesenseResult.data.id) {
-        console.log("called");
         const update = await VoiceSenseController.saveReference(
           interview_id,
           question_id,

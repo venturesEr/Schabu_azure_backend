@@ -99,7 +99,6 @@ const Controller = {
   },
   getInterviewsById: (req, res, next) => {
     const interview_id = req.params.id;
-    console.log(interview_id);
     const request = new Request(
       `SELECT T2.candidate_firstname, T2.email_id,T1.voicesense_id,T1.voicesense_score,T3.answer_text,T3.answer_audio,T3.question_id,T5.question_text FROM demo_candidate_interview T1 JOIN demo_candidate T2 ON T1.candidate_hash=T2.hash_code JOIN demo_answer T3 ON T1.interview_id = T3.interview_id JOIN Job_Questionnaire T4 ON T2.job_id =T4.job_id AND T3.question_id = T4.question_id JOIN [dbo].[Questionnaire] T5 ON T5.question_id = T4.question_id WHERE T1.interview_id='${interview_id}';`,
       (err) => {
